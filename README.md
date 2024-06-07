@@ -57,3 +57,10 @@ We have created a [notebook](https://github.com/ebanalyse/ebnerd-benchmark/blob/
 ## Data manipulation and enrichment
 In the [dataset_ebnerd](https://github.com/ebanalyse/ebnerd-benchmark/blob/main/examples/00_quick_start/dataset_ebnerd.ipynb) demo, we show how one can join histories and create binary labels.
 
+
+## Launching Jupyter session in Snellius
+1. Launch an ssh session with port forwarding using your credentials: ` ssh -L 8888:localhost:8888  -i <path_to_ssh_key>  <username>@snellius.surf.nl`
+2. Create new interactive session within compute node: `srun --partition=gpu --gpus=1 --ntasks=1 --cpus-per-task=18 --time=00:10:00 --pty bash -i`
+3. Activate conda env where jupyter lab / notebook is installed and then launch new jupyter session without browser: `jupyter lab --no-browser`
+4. While keeping the previous ssh session open, launch a new one with the command in step 1.
+5. Within Snellius shh session, connect to compute node via ssh port forwarding: `ssh <mode_name> -L 8888:localhost:8888`
