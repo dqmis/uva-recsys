@@ -64,3 +64,12 @@ In the [dataset_ebnerd](https://github.com/ebanalyse/ebnerd-benchmark/blob/main/
 3. Activate conda env where jupyter lab / notebook is installed and then launch new jupyter session without browser: `jupyter lab --no-browser`
 4. While keeping the previous ssh session open, launch a new one with the command in step 1.
 5. Within Snellius shh session, connect to compute node via ssh port forwarding: `ssh <mode_name> -L 8888:localhost:8888`
+
+## Dataset insights
+
+* The target value (article_ids_clicked) is a list of articles clicked during the impression. Why don't transform it into multiple rows with a single article_id_cliked? Also 99.5% of lists have a single article in it (no need to do multiple articles classification).
+* Small and demo datasets are subsets of large dataset (no need to combine them)
+* Test set doesn't contain article_id - it means we have to rely on other articles belonging to the same session from train set to. 6% of test set impressions belong to one of the sessions present in the train dataset.
+* Big majority of sessions (more than 50%) have a length of 1. These were discarded in the original paper.
+* User history spans across 20 days, while impressions span across 6 days (from train data; test data is the same). As soon as user history timestamps end, the impression timestamp begin - we cannot assign recent context from user history.
+* Most of the columns containing NaNs can be discarded - no need to spend to much time trying to fill them.
