@@ -27,3 +27,6 @@ venv
 
 # just for now:
 evaluate_predictions.py
+.venv/
+data/*
+!data/README.md
