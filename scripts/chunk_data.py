@@ -121,7 +121,6 @@ seq_feats_list = (
 )
 
 print("Creating workflow...")
-
 workflow = nvt.Workflow(
     filtered_sessions["user_id", "impression_ts-min"] + seq_feats_list
 )
