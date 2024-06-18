@@ -11,12 +11,15 @@ from transformers4rec.utils.data_utils import save_time_based_splits
 INPUT_DATA_DIR = "data/ebnerd_small_modified"
 OUTPUT_DIR = os.path.join(INPUT_DATA_DIR, "sessions_by_ts")
 PADDING = False
+PART_SIZE = "128MB"  # Change it to "1GB" if you have enough memory, it will be faster
 
-df = pd.read_parquet(f"{INPUT_DATA_DIR}/all.parquet")
-
-df.sort_values(by="impression_ts")
-df["impression_ts"] = (datetime.datetime.now() - df["impression_ts"]).dt.days
-df["impression_ts"] = df["impression_ts"] - df["impression_ts"].min()
+if not os.path.exists(f"{INPUT_DATA_DIR}/all_sorted.parquet"):
+    df = pd.read_parquet(f"{INPUT_DATA_DIR}/all.parquet")
+    df.sort_values(by="impression_ts")
+    df["impression_ts"] = (datetime.datetime.now() - df["impression_ts"]).dt.days
+    df["impression_ts"] = df["impression_ts"] - df["impression_ts"].min()
+    df.to_parquet(f"{INPUT_DATA_DIR}/all_sorted.parquet")
+    del df
 
 SESSIONS_MAX_LENGTH = 10
 
@@ -117,14 +120,20 @@ seq_feats_list = (
     >> nvt.ops.ValueCount()
 )
 
+print("Creating workflow...")
+
 workflow = nvt.Workflow(
     filtered_sessions["user_id", "impression_ts-min"] + seq_feats_list
 )
 
-dataset = nvt.Dataset(df)
+print("Creating dataset...")
+dataset = nvt.Dataset(
+    os.path.join(INPUT_DATA_DIR, "all_sorted.parquet"), part_size="128MB"
+)
 
 # Generate statistics for the features and export parquet files
 # this step will generate the schema file
+print("Starting fit transform...")
 workflow.fit_transform(dataset).to_parquet(
     os.path.join(INPUT_DATA_DIR, "processed_nvt")
 )
@@ -132,6 +141,7 @@ workflow.save(os.path.join(INPUT_DATA_DIR, "workflow_etl"))
 sessions_gdf = pd.read_parquet(
     os.path.join(INPUT_DATA_DIR, "processed_nvt/part_0.parquet")
 )
+print("Creating time based splits...")
 save_time_based_splits(
     data=nvt.Dataset(sessions_gdf),
     output_dir=OUTPUT_DIR,
@@ -139,3 +149,4 @@ save_time_based_splits(
     timestamp_col="user_id",
     cpu=False,
 )
+print("Done!")
