@@ -1,0 +1,90 @@
+model_args:
+  input_features_aggregation: "concat" # "concat" or "elementwise_sum_multiply_item_embedding"
+  model_type: "xlnet" # "gpt2|transfoxl|xlnet|reformer|longformer"
+  tf_out_activation: "relu" # "transformer output activation: 'tanh' OR 'relu'"
+
+  # args for MLM task
+  mlm: False # "Use Masked Language Modeling (Cloze objective) for training
+  mlm_probability: 0.15 # Probability of masking a token for Masked Language Modeling
+
+  # args for PLM task
+  plm: False # "Use Permutation Language Modeling (PLM) for training
+  plm_probability: 0.25 # Ratio of tokens to unmask to form the surrounding context of the masked span
+  plm_max_span_length: 5 # maximum length of segment to mask for partial prediction
+  plm_mask_input: False # Mask input of XLNET as in AE models or not
+  plm_permute_all: False # Permute all non padded items
+  
+  # args for RTD task
+  rtd: False # Use Replaced Token Detection (ELECTRA objective) for training
+  rtd_sample_from_batch: False # Sample replacement itemids from the whole corpus (False) or only from the current batch (True)
+  rtd_use_batch_interaction: False # Use batch processed item interactions for building the corrupted sequence
+  rtd_discriminator_loss_weight: 50.0 # Weight of the discriminator loss
+  rtd_generator_loss_weight: 1.0 # Weight of the generator loss
+  rtd_tied_generator: False # Use the same weights for generator and discriminator
+
+  # general args for model
+  d_model: 256 # size of hidden states (or internal states) for RNNs and Transformers
+  n_layer: 12 # number of layers for RNNs and Transformers
+  n_head: 4 # number of heads for Transformers
+  layer_norm_eps: 1e-12 # epsilon for layer normalization for Transformers
+  initializer_range: 0.02 # range for random weight initialization for Transformers
+  hidden_act: "gelu" # activation function for Transformers. 'gelu', 'relu' and 'swish' are supported
+  dropout: 0.1 # dropout rate for Transformers
+
+  # Args for XLNet
+  summary_type: "last" # how to summarize the vector representation of the sequence'last', 'first', 'mean', 'attn' are supported
+
+  # Args for ALBERT
+  num_hidden_groups: 1 # number of groups for the hidden layers, parameters in the same group are shared
+  inner_group_num: 1 # number of inner repetition of attention and ffn
+
+  # General training args
+  eval_on_last_item_seq_only: False # evaluate metrics only on predictions for the last item of the sequence (rather then evaluation for all next-item predictions)
+  train_on_last_item_seq_only: False # train only for predicting the last item of the sequence (rather then training to predict for all next-item predictions) (only for Causal LM)
+  mf_constrained_embeddings: False # implements the tying embeddings technique
+  item_embedding_dim: 64 # dimension of the item embedding. if it is None, a heuristic method used to define the dimension based on items cardinality
+  numeric_features_project_to_embedding_dim: 0 # uses a fully-connected layer to project a numeric scalar feature to an embedding with this dimension
+  numeric_features_soft_one_hot_encoding_num_embeddings: 0 # if greater than zero, enables soft one-hot encoding technique for numerical features (https://arxiv.org/pdf/1708.00065.pdf)
+  stochastic_shared_embeddings_replacement_prob: 0.0 # probability of the embedding of a categorical feature be replaced by another an embedding of the same batch
+  softmax_temperature: 1.0 # softmax temperature, used to reduce model overconfidence
+  label_smoothing: 0.0 # label smoothing using as alpha this parameter value
+  embedding_dim_from_cardinality_multiplier: 2.0 # define the feature embedding dim based on its cardinality. embedding_size = int(math.ceil(math.pow(cardinality, 0.25) * multiplier))
+  item_id_embeddings_init_std: 0.5 
+  other_embeddings_init_std: 0.05
+  layer_norm_featurewise: False # enables layer norm for each feature individually, before their aggregation
+  attn_type: "bi" # type of attention. use 'uni' for Causal LM and 'bi' for Masked LM
+  input_dropout: 0.0 # dropout rate for the input features
+  loss_type: "cross_entropy" # cross_entropy|top1|top1_max|bpr|bpr_max_reg
+  similarity_type: "concat_mlp" # how to compute similarity of sequences
+  inp_merge: "mlp" # input merge mechanism: 'mlp' OR 'attn'
+  learning_rate_warmup_steps: 0
+  avg_session_length: null # When eval_on_last_item_seq_only=False, this estimate of avg. session length is used to estimate the number of interactions from the batch_size
+  sampled_softmax: False # sampled softmax for training
+  sampled_softmax_max_n_samples: 1000 # max number of samples for sampled softmax
+
+data_args:
+  data_path: "data/ebnerd_mid_modified/sessions_by_ts"
+  features_schema_path: "data/ebnerd_mid_modified/processed_nvt/schema.pbtxt"
+  embeddings_path: "data/ebnerd_mid_modified/article_embeddings.npy"
+  start_time_window_index: 0
+  final_time_window_index: 18
+  use_side_information_features: True
+
+training_args:
+  run_name: null
+  output_dir: "output"
+  overwrite_output_dir: True
+
+  local_rank: 0
+  device: "gpu"
+  n_gpu: 1
+  fp16: False
+  per_device_train_batch_size: 512
+  per_device_eval_batch_size: 512
+  
+  seed: 2137
+  do_train: True
+  do_eval: True
+  validate_every: 5 # Run validation set every this epoch. -1 means no validation is used 
+  max_sequence_length: 10 # maximum length of a session (for padding and trimming)
+  learning_rate_schedule: null # constant_with_warmup | linear_with_warmup | cosine_with_warmup
