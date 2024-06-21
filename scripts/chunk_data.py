@@ -137,15 +137,33 @@ workflow.fit_transform(dataset).to_parquet(
     os.path.join(INPUT_DATA_DIR, "processed_nvt")
 )
 workflow.save(os.path.join(INPUT_DATA_DIR, "workflow_etl"))
-sessions_gdf = pd.read_parquet(
-    os.path.join(INPUT_DATA_DIR, "processed_nvt/part_0.parquet")
-)
+
+
 print("Creating time based splits...")
-save_time_based_splits(
-    data=nvt.Dataset(sessions_gdf),
-    output_dir=OUTPUT_DIR,
-    partition_col="impression_ts-min",
-    timestamp_col="user_id",
-    cpu=False,
+OUTPUT_DIR = os.environ.get("OUTPUT_DIR",os.path.join(INPUT_DATA_DIR, "sessions_by_ts"))
+
+data_dir = Path(os.path.join(INPUT_DATA_DIR, "processed_nvt"))
+sessions_gdf = pd.concat(
+    pd.read_parquet(parquet_file)
+    for parquet_file in data_dir.glob('*.parquet')
 )
+
+groups = sessions_gdf.groupby('day_index')
+
+output_dir = OUTPUT_DIR
+os.makedirs(output_dir, exist_ok=True)
+
+for day, group in groups:
+    train, val = train_test_split(group, test_size=0.1, random_state=42)
+    
+    # Create subdirectory for the current day index
+    day_dir = os.path.join(output_dir, f'{day}')
+    os.makedirs(day_dir, exist_ok=True)
+    
+    # Save train and eval sets in the day-specific directory
+    train_file_path = os.path.join(day_dir, 'train.parquet')
+    val_file_path = os.path.join(day_dir, 'valid.parquet')
+    
+    train.to_parquet(train_file_path, index=False)
+    val.to_parquet(val_file_path, index=False)
 print("Done!")
