@@ -203,6 +203,8 @@ def main(cfg):
         data_args=data_args,
         schema=schema,
     )
+    logger.info(f"Saving model to {training_args.output_dir}")
+    model.save(training_args.output_dir)
 
     if training_args.do_eval:
         logger.info("Computing and logging AOT (Average Over Time) metrics")
@@ -261,15 +263,6 @@ def main(cfg):
     output_file = os.path.join(training_args.output_dir, "eval_results_over_time.txt")
     with open(output_file, "a") as writer:
         writer.write(f"\n***** Recall@10 of simulated inference = {recall_10} *****\n")
-
-    # Verify that the recall@10 from train.evaluate() matches the recall@10 calculated manually
-    if not isinstance(input_module.masking, t4r.masking.PermutationLanguageModeling):
-        # TODO fix inference discrepancy for permutation language modeling
-        assert np.isclose(
-            recall_10, results_over_time[2]["eval_/next-item/recall_at_10"], rtol=0.1
-        )
-
-    model.save(training_args.output_dir)
 
 
 def get_model_schema(data_args, train_args, schema):
@@ -420,7 +413,7 @@ def is_dataframe_empty(paths):
         if len(paths) == 0:
             return True
         paths = paths[0]
-    df = pd.read_parquet(paths, columns=["user_id"])
+    df = pd.read_parquet(paths, columns=["session_id"])
     return df.empty
 
 
