@@ -4,7 +4,7 @@ model_args:
   tf_out_activation: "relu" # "transformer output activation: 'tanh' OR 'relu'"
 
   # args for MLM task
-  mlm: False # "Use Masked Language Modeling (Cloze objective) for training
+  mlm: True # "Use Masked Language Modeling (Cloze objective) for training
   mlm_probability: 0.15 # Probability of masking a token for Masked Language Modeling
 
   # args for PLM task
@@ -32,7 +32,7 @@ model_args:
   dropout: 0.1 # dropout rate for Transformers
 
   # Args for XLNet
-  summary_type: "last" # how to summarize the vector representation of the sequence'last', 'first', 'mean', 'attn' are supported
+  summary_type: "attn" # how to summarize the vector representation of the sequence'last', 'first', 'mean', 'attn' are supported
 
   # Args for ALBERT
   num_hidden_groups: 1 # number of groups for the hidden layers, parameters in the same group are shared
@@ -56,23 +56,23 @@ model_args:
   input_dropout: 0.0 # dropout rate for the input features
   loss_type: "cross_entropy" # cross_entropy|top1|top1_max|bpr|bpr_max_reg
   similarity_type: "concat_mlp" # how to compute similarity of sequences
-  inp_merge: "mlp" # input merge mechanism: 'mlp' OR 'attn'
+  inp_merge: "attn" # input merge mechanism: 'mlp' OR 'attn'
   learning_rate_warmup_steps: 0
   avg_session_length: null # When eval_on_last_item_seq_only=False, this estimate of avg. session length is used to estimate the number of interactions from the batch_size
   sampled_softmax: False # sampled softmax for training
   sampled_softmax_max_n_samples: 1000 # max number of samples for sampled softmax
 
 data_args:
-  data_path: "data/ebnerd_mid_modified/sessions_by_ts"
-  features_schema_path: "data/ebnerd_mid_modified/processed_nvt/schema.pbtxt"
-  embeddings_path: "data/ebnerd_mid_modified/article_embeddings.npy"
+  data_path: "data/ebnerd_demo_modified/sessions_by_ts"
+  features_schema_path: "data/ebnerd_demo_modified/processed_nvt/schema.pbtxt"
+  embeddings_path: "data/ebnerd_demo_modified/article_embeddings.npy"
   start_time_window_index: 0
-  final_time_window_index: 18
+  final_time_window_index: 5
   use_side_information_features: True
 
 training_args:
   run_name: null
-  output_dir: "output"
+  output_dir: "xlnet_output"
   overwrite_output_dir: True
 
   local_rank: 0
@@ -85,6 +85,7 @@ training_args:
   seed: 2137
   do_train: True
   do_eval: True
-  validate_every: 5 # Run validation set every this epoch. -1 means no validation is used 
+  eval_on_test_set: False
+  validate_every: 1 # Run validation set every this epoch. -1 means no validation is used 
   max_sequence_length: 10 # maximum length of a session (for padding and trimming)
   learning_rate_schedule: null # constant_with_warmup | linear_with_warmup | cosine_with_warmup
