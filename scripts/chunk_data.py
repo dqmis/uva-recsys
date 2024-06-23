@@ -5,8 +5,8 @@ import datetime
 
 from nvtabular.ops import *
 from merlin.schema.tags import Tags
-from transformers4rec.utils.data_utils import save_time_based_splits
-
+from sklearn.model_selection import train_test_split
+from pathlib import Path
 
 INPUT_DATA_DIR = "data/ebnerd_demo_modified"
 OUTPUT_DIR = os.path.join(INPUT_DATA_DIR, "sessions_by_ts")
@@ -20,13 +20,6 @@ if not os.path.exists(f"{INPUT_DATA_DIR}/all_sorted.parquet"):
     df["impression_time"] = df["impression_time"] - df["impression_time"].min()
     df.to_parquet(f"{INPUT_DATA_DIR}/all_sorted.parquet")
     del df
-
-# df = pd.read_parquet(f"{INPUT_DATA_DIR}/all.parquet")
-# df.sort_values(by="impression_time")
-# df["impression_time"] = (datetime.datetime.now() - df["impression_time"]).dt.days
-# df["impression_time"] = df["impression_time"] - df["impression_time"].min()
-# df.to_parquet(f"{INPUT_DATA_DIR}/all_sorted.parquet")
-# del df
 
 SESSIONS_MAX_LENGTH = 20
 
@@ -146,30 +139,31 @@ workflow.save(os.path.join(INPUT_DATA_DIR, "workflow_etl"))
 
 
 print("Creating time based splits...")
-OUTPUT_DIR = os.environ.get("OUTPUT_DIR",os.path.join(INPUT_DATA_DIR, "sessions_by_ts"))
+OUTPUT_DIR = os.environ.get(
+    "OUTPUT_DIR", os.path.join(INPUT_DATA_DIR, "sessions_by_ts")
+)
 
 data_dir = Path(os.path.join(INPUT_DATA_DIR, "processed_nvt"))
 sessions_gdf = pd.concat(
-    pd.read_parquet(parquet_file)
-    for parquet_file in data_dir.glob('*.parquet')
+    pd.read_parquet(parquet_file) for parquet_file in data_dir.glob("*.parquet")
 )
 
-groups = sessions_gdf.groupby('day_index')
+groups = sessions_gdf.groupby("day_index")
 
 output_dir = OUTPUT_DIR
 os.makedirs(output_dir, exist_ok=True)
 
 for day, group in groups:
     train, val = train_test_split(group, test_size=0.1, random_state=42)
-    
+
     # Create subdirectory for the current day index
-    day_dir = os.path.join(output_dir, f'{day}')
+    day_dir = os.path.join(output_dir, f"{day}")
     os.makedirs(day_dir, exist_ok=True)
-    
+
     # Save train and eval sets in the day-specific directory
-    train_file_path = os.path.join(day_dir, 'train.parquet')
-    val_file_path = os.path.join(day_dir, 'valid.parquet')
-    
+    train_file_path = os.path.join(day_dir, "train.parquet")
+    val_file_path = os.path.join(day_dir, "valid.parquet")
+
     train.to_parquet(train_file_path, index=False)
     val.to_parquet(val_file_path, index=False)
 print("Done!")

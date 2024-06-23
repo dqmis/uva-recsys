@@ -127,8 +127,6 @@ def main(cfg):
     # Define input module to process tabular input-features and to prepare masked inputs
     input_module = t4r.TabularSequenceFeatures.from_schema(
         schema=get_model_schema(data_args, training_args, schema),
-        # schema=get_loader()
-        # schema=schema,
         max_sequence_length=training_args.max_sequence_length,
         aggregation=model_args.input_features_aggregation,
         d_output=model_args.d_model,
