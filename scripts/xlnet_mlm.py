@@ -17,14 +17,25 @@
 import glob
 import logging
 import os
+from functools import partial
+
 import hydra
 import numpy as np
 import pandas as pd
 import torch
 import transformers
 import transformers4rec.torch as t4r
+from merlin.dataloader.ops.embeddings import EmbeddingOperator
+from merlin.io import Dataset
+from merlin.schema import Tags
+from merlin_standard_lib import Schema
+from transformers import HfArgumentParser, set_seed
+from transformers4rec.torch import Trainer
+from transformers4rec.torch.utils.data_utils import MerlinDataLoader
+from transformers4rec.torch.utils.examples_utils import wipe_memory
+from transformers.trainer_utils import is_main_process
 
-from functools import partial
+from src.metrics import RecallAt
 from src.utils.exp_outputs import (
     config_dllogger,
     creates_output_dir,
@@ -32,17 +43,7 @@ from src.utils.exp_outputs import (
     log_metric_results,
     log_parameters,
 )
-from merlin.io import Dataset
-from merlin.schema import Tags
 from src.utils.transf_exp_args import DataArguments, ModelArguments, TrainingArguments
-from transformers import HfArgumentParser, set_seed
-from transformers.trainer_utils import is_main_process
-from merlin.dataloader.ops.embeddings import EmbeddingOperator
-from merlin_standard_lib import Schema
-from src.metrics import RecallAt
-from transformers4rec.torch import Trainer
-from transformers4rec.torch.utils.data_utils import MerlinDataLoader
-from transformers4rec.torch.utils.examples_utils import wipe_memory
 
 logger = logging.getLogger(__name__)
 # os.environ["WANDB_DISABLED"] = "true"
@@ -71,12 +72,17 @@ def main(cfg):
     training_args.run_name = None
 
     # Loading the schema of the dataset
-    schema = Schema().from_proto_text(data_args.features_schema_path)
+    schema = (
+        Schema()
+        .from_proto_text(data_args.features_schema_path)
+        .select_by_name(list(data_args.schema_columns))
+    )
 
     if not data_args.use_side_information_features:
         schema = schema.select_by_tag([Tags.ITEM_ID])
 
     item_id_col = schema.select_by_tag([Tags.ITEM_ID]).column_names[0]
+
     col_names = schema.column_names
     logger.info("Column names: {}".format(col_names))
 
@@ -125,8 +131,9 @@ def main(cfg):
         embeddings_initializers[col] = partial(torch.nn.init.normal_, mean=0.0, std=std)
 
     # Define input module to process tabular input-features and to prepare masked inputs
+
     input_module = t4r.TabularSequenceFeatures.from_schema(
-        schema=get_model_schema(data_args, training_args, schema),
+        schema=schema,
         max_sequence_length=training_args.max_sequence_length,
         aggregation=model_args.input_features_aggregation,
         d_output=model_args.d_model,
@@ -272,7 +279,8 @@ def get_model_schema(data_args, train_args, schema):
         )
     )
     loader = get_loader(data_path, train_args, data_args, schema, train=True)
-    return loader.output_schema
+    schema = loader.output_schema
+    return schema.select_by_name(data_args.schema_columns)
 
 
 def recall(predicted_items: np.ndarray, real_items: np.ndarray) -> float:
@@ -416,20 +424,25 @@ def is_dataframe_empty(paths):
 
 
 def get_loader(data, train_args, data_args, schema, train=True):
-    embeddings_op_article = EmbeddingOperator(
-        data_args.embeddings_path,
-        lookup_key="article_emb_id-list",
-        embedding_name="pretrained_article_embeddings",
-    )
+
+    if "article_emb_id-list" in schema.column_names:
+        embeddings_op_article = EmbeddingOperator(
+            data_args.embeddings_path,
+            lookup_key="article_emb_id-list",
+            embedding_name="pretrained_article_embeddings",
+        )
+        transforms = [embeddings_op_article]
+    else:
+        transforms = []
 
     if train:
         loader = MerlinDataLoader.from_schema(
             schema,
             data,
             train_args.per_device_train_batch_size,
-            transforms=[embeddings_op_article],
-            drop_last=train_args.dataloader_drop_last,
+            transforms=transforms,
             shuffle=True,
+            drop_last=train_args.dataloader_drop_last,
             shuffle_buffer_size=train_args.shuffle_buffer_size,
             global_rank=train_args.local_rank,
             global_size=train_args.world_size,
@@ -440,7 +453,7 @@ def get_loader(data, train_args, data_args, schema, train=True):
             schema,
             data,
             train_args.per_device_eval_batch_size,
-            transforms=[embeddings_op_article],
+            transforms=transforms,
             drop_last=train_args.dataloader_drop_last,
             shuffle=False,
             shuffle_buffer_size=train_args.shuffle_buffer_size,
@@ -448,6 +461,7 @@ def get_loader(data, train_args, data_args, schema, train=True):
             global_size=train_args.world_size,
             device="0",
         )
+
     return loader
 
 

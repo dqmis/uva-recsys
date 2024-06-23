@@ -31,6 +31,11 @@ class DataArguments:
         metadata={"help": "Path with the dataset schema in protobuf text format"},
     )
 
+    schema_columns: Optional[list[str]] = field(
+        default=None,
+        metadata={"help": "Train schema"},
+    )
+
     embeddings_path: Optional[str] = field(
         default="",
         metadata={"help": "Path to pretrained embeddings embeddings."},
