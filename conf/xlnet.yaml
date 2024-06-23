@@ -13,7 +13,7 @@ model_args:
   plm_max_span_length: 5 # maximum length of segment to mask for partial prediction
   plm_mask_input: False # Mask input of XLNET as in AE models or not
   plm_permute_all: False # Permute all non padded items
-  
+
   # args for RTD task
   rtd: False # Use Replaced Token Detection (ELECTRA objective) for training
   rtd_sample_from_batch: False # Sample replacement itemids from the whole corpus (False) or only from the current batch (True)
@@ -49,7 +49,7 @@ model_args:
   softmax_temperature: 1.0 # softmax temperature, used to reduce model overconfidence
   label_smoothing: 0.0 # label smoothing using as alpha this parameter value
   embedding_dim_from_cardinality_multiplier: 2.0 # define the feature embedding dim based on its cardinality. embedding_size = int(math.ceil(math.pow(cardinality, 0.25) * multiplier))
-  item_id_embeddings_init_std: 0.5 
+  item_id_embeddings_init_std: 0.5
   other_embeddings_init_std: 0.05
   layer_norm_featurewise: False # enables layer norm for each feature individually, before their aggregation
   attn_type: "bi" # type of attention. use 'uni' for Causal LM and 'bi' for Masked LM
@@ -63,12 +63,23 @@ model_args:
   sampled_softmax_max_n_samples: 1000 # max number of samples for sampled softmax
 
 data_args:
-  data_path: "data/ebnerd_demo_modified/sessions_by_ts"
-  features_schema_path: "data/ebnerd_demo_modified/processed_nvt/schema.pbtxt"
-  embeddings_path: "data/ebnerd_demo_modified/article_embeddings.npy"
-  start_time_window_index: 0
+  data_path: "./data/train_all/sessions_by_ts"
+  features_schema_path: "./data/train_all/processed_nvt/schema.pbtxt"
+  embeddings_path: "./data/ebnerd_demo_modified/article_embeddings.npy"
+  start_time_window_index: 1
   final_time_window_index: 35
   use_side_information_features: True
+  schema_columns:
+    [
+      "article_id-list",
+      "is_premium-list",
+      "article_type-list",
+      "category-list",
+      "topic-list",
+      "read_time-list",
+      "topics_count-list",
+      "sentiment_score-list",
+    ]
 
 training_args:
   run_name: null
@@ -81,11 +92,11 @@ training_args:
   fp16: False
   per_device_train_batch_size: 512
   per_device_eval_batch_size: 512
-  
+
   seed: 2137
   do_train: True
   do_eval: True
   eval_on_test_set: False
-  validate_every: 1 # Run validation set every this epoch. -1 means no validation is used 
+  validate_every: 1 # Run validation set every this epoch. -1 means no validation is used
   max_sequence_length: 20 # maximum length of a session (for padding and trimming)
   learning_rate_schedule: null # constant_with_warmup | linear_with_warmup | cosine_with_warmup
