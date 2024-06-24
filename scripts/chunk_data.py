@@ -11,13 +11,16 @@ from sklearn.model_selection import train_test_split
 INPUT_DATA_DIR = "data/ebnerd_demo_modified"
 OUTPUT_DIR = os.path.join(INPUT_DATA_DIR, "sessions_by_ts")
 PADDING = False
-PART_SIZE = "256MB"  # Change it to "1GB" if you have enough GPU mem, it will be faster
+PART_SIZE = "128MB"  # Change it to "1GB" if you have enough GPU mem, it will be faster
 
-if not os.path.exists(f"{INPUT_DATA_DIR}/all_sorted.parquet"):
-    df = pd.read_parquet(f"{INPUT_DATA_DIR}/all.parquet")
-    df.sort_values(by="impression_time", inplace=True)
-    df.to_parquet(f"{INPUT_DATA_DIR}/all_sorted.parquet")
-    del df
+# if not os.path.exists(f"{INPUT_DATA_DIR}/all_sorted.parquet"):
+df = pd.read_parquet(f"{INPUT_DATA_DIR}/all.parquet")
+df.sort_values(by="impression_time", inplace=True)
+df["impression_time"] = (datetime.datetime.now() - df["impression_time"]).dt.days
+df["impression_time"] = df["impression_time"] - df["impression_time"].min()
+df.rename(columns={"impression_time": "day_index"}, inplace=True)
+df.to_parquet(f"{INPUT_DATA_DIR}/all_sorted.parquet")
+del df
 
 SESSIONS_MAX_LENGTH = 20
 
@@ -34,10 +37,10 @@ categ_feats = [
 groupby_feats = categ_feats + [
     "session_id",
     "article_emb_id",
-    "impression_time",
     "read_time",
     "topics_count",
     "sentiment_score",
+    "day_index",
 ]
 
 # Group interaction features by session
@@ -52,8 +55,9 @@ groupby_features = groupby_feats >> nvt.ops.Groupby(
         "read_time": ["list"],
         "topics_count": ["list"],
         "sentiment_score": ["list"],
-        "impression_time": ["min"],
+        # "impression_time": ["min"],
         "article_emb_id": ["list"],
+        "day_index": ["min"],
     },
     name_sep="-",
 )
@@ -85,22 +89,14 @@ sequence_features_truncated_emb = groupby_features[
     "article_emb_id-list"
 ] >> nvt.ops.ListSlice(-SESSIONS_MAX_LENGTH, pad=PADDING)
 
-day_index = (
-    (groupby_features["impression_time-min"])
-    >> nvt.ops.LambdaOp(lambda col: (col - col.min()).dt.days + 1)
-    >> nvt.ops.Rename(f=lambda col: "day_index")
-    >> nvt.ops.AddMetadata(tags=[Tags.CATEGORICAL])
-)
-
 # Filter out sessions with length 1 (not valid for next-item prediction training and evaluation)
 MINIMUM_SESSION_LENGTH = 2
 selected_features = (
-    groupby_features["article_id-count", "session_id"]
+    groupby_features["article_id-count", "session_id", "day_index-min"]
     + sequence_features_truncated_item
     + sequence_features_truncated_cat
     + sequence_features_truncated_cont
     + sequence_features_truncated_emb
-    + day_index
 )
 
 filtered_sessions = selected_features >> nvt.ops.Filter(
@@ -123,7 +119,9 @@ seq_feats_list = (
 )
 
 print("Creating workflow...")
-workflow = nvt.Workflow(filtered_sessions["session_id", "day_index"] + seq_feats_list)
+workflow = nvt.Workflow(
+    filtered_sessions["session_id", "day_index-min"] + seq_feats_list
+)
 
 print("Creating dataset...")
 dataset = nvt.Dataset(
@@ -149,7 +147,10 @@ sessions_gdf = pd.concat(
     pd.read_parquet(parquet_file) for parquet_file in data_dir.glob("*.parquet")
 )
 
-groups = sessions_gdf.groupby("day_index")
+print("=============DAYS FOR PARTITION==============")
+print(sessions_gdf["day_index-min"].value_counts())
+
+groups = sessions_gdf.groupby("day_index-min")
 
 output_dir = OUTPUT_DIR
 os.makedirs(output_dir, exist_ok=True)
