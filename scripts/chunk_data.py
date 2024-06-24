@@ -1,12 +1,12 @@
-import os
-import pandas as pd
-import nvtabular as nvt
 import datetime
-
-from nvtabular.ops import *
-from merlin.schema.tags import Tags
-from sklearn.model_selection import train_test_split
+import os
 from pathlib import Path
+
+import nvtabular as nvt
+import pandas as pd
+from merlin.schema.tags import Tags
+from nvtabular.ops import *
+from sklearn.model_selection import train_test_split
 
 INPUT_DATA_DIR = "data/ebnerd_demo_modified"
 OUTPUT_DIR = os.path.join(INPUT_DATA_DIR, "sessions_by_ts")
@@ -29,6 +29,7 @@ categ_feats = [
     "is_premium",
     "article_type",
     "category",
+    "topic",
 ] >> nvt.ops.Categorify()
 
 # Define Groupby Workflow
@@ -37,9 +38,8 @@ groupby_feats = categ_feats + [
     "article_emb_id",
     "impression_time",
     "read_time",
-    # "article_total_read_time",
+    "topics_count",
     "sentiment_score",
-    # "article_ctr",
 ]
 
 # Group interaction features by session
@@ -47,16 +47,15 @@ groupby_features = groupby_feats >> nvt.ops.Groupby(
     groupby_cols=["session_id"],
     aggs={
         "article_id": ["list", "count"],
-        # "session_id": ["list"],
-        "article_emb_id": ["list"],
         "is_premium": ["list"],
         "article_type": ["list"],
         "category": ["list"],
+        "topic": ["list"],
         "read_time": ["list"],
-        # "article_total_read_time": ["list"],
+        "topics_count": ["list"],
         "sentiment_score": ["list"],
-        # "article_ctr": ["list"],
         "impression_time": ["min"],
+        "article_emb_id": ["list"],
     },
     name_sep="-",
 )
@@ -68,36 +67,42 @@ sequence_features_truncated_item = (
 )
 
 sequence_features_truncated_cat = (
-    groupby_features["is_premium-list", "article_type-list", "category-list"]
+    groupby_features[
+        "is_premium-list", "article_type-list", "category-list", "topic-list"
+    ]
     >> nvt.ops.ListSlice(-SESSIONS_MAX_LENGTH, pad=PADDING)
     >> nvt.ops.AddMetadata(tags=[Tags.CATEGORICAL])
 )
 sequence_features_truncated_cont = (
     groupby_features[
         "read_time-list",
-        # "article_total_read_time-list",
+        "topics_count-list",
         "sentiment_score-list",
-        # "article_ctr-list",
     ]
     >> nvt.ops.ListSlice(-SESSIONS_MAX_LENGTH, pad=PADDING)
     >> nvt.ops.AddMetadata(tags=[Tags.CONTINUOUS])
 )
 
-sequence_features_truncated_emb = (
-    groupby_features["article_emb_id-list"]
-    >> nvt.ops.ListSlice(-SESSIONS_MAX_LENGTH, pad=PADDING)
-    # >> nvt.ops.AddMetadata(tags=[Tags.EMBEDDING])
-)
+sequence_features_truncated_emb = groupby_features[
+    "article_emb_id-list"
+] >> nvt.ops.ListSlice(-SESSIONS_MAX_LENGTH, pad=PADDING)
 
+day_index = (
+    (groupby_features["impression_time-min"])
+    >> nvt.ops.LambdaOp(lambda col: (col - col.min()).dt.days + 1)
+    >> nvt.ops.Rename(f=lambda col: "day_index")
+    >> nvt.ops.AddMetadata(tags=[Tags.CATEGORICAL])
+)
 
 # Filter out sessions with length 1 (not valid for next-item prediction training and evaluation)
 MINIMUM_SESSION_LENGTH = 2
 selected_features = (
-    groupby_features["article_id-count", "impression_time-min", "session_id"]
+    groupby_features["article_id-count", "session_id"]
     + sequence_features_truncated_item
     + sequence_features_truncated_cat
     + sequence_features_truncated_cont
     + sequence_features_truncated_emb
+    + day_index
 )
 
 filtered_sessions = selected_features >> nvt.ops.Filter(
@@ -112,17 +117,15 @@ seq_feats_list = (
         "article_type-list",
         "category-list",
         "read_time-list",
-        # "article_total_read_time-list",
         "sentiment_score-list",
-        # "article_ctr-list",
+        "topics_count-list",
+        "topic-list",
     ]
     >> nvt.ops.ValueCount()
 )
 
 print("Creating workflow...")
-workflow = nvt.Workflow(
-    filtered_sessions["session_id", "impression_time-min"] + seq_feats_list
-)
+workflow = nvt.Workflow(filtered_sessions["session_id", "day_index"] + seq_feats_list)
 
 print("Creating dataset...")
 dataset = nvt.Dataset(
