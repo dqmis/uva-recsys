@@ -15,9 +15,7 @@ PART_SIZE = "256MB"  # Change it to "1GB" if you have enough GPU mem, it will be
 
 if not os.path.exists(f"{INPUT_DATA_DIR}/all_sorted.parquet"):
     df = pd.read_parquet(f"{INPUT_DATA_DIR}/all.parquet")
-    df.sort_values(by="impression_time")
-    df["impression_time"] = (datetime.datetime.now() - df["impression_time"]).dt.days
-    df["impression_time"] = df["impression_time"] - df["impression_time"].min()
+    df.sort_values(by="impression_time", inplace=True)
     df.to_parquet(f"{INPUT_DATA_DIR}/all_sorted.parquet")
     del df
 
