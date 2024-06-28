@@ -1,3 +1,5 @@
+polars
+wandb
 absl-py==2.1.0
 accelerate==0.31.0
 antlr4-python3-runtime==4.9.3
@@ -20,7 +22,6 @@ dask-cudf-cu12==24.2.2
 debugpy==1.6.7
 decorator==5.1.1
 distributed==2024.1.1
-DLLogger==1.0.0
 docker-pycreds==0.4.0
 exceptiongroup==1.2.0
 executing==2.0.1
@@ -80,7 +81,6 @@ pillow==10.3.0
 pip==24.0
 platformdirs==4.2.2
 prompt_toolkit==3.0.46
-protobuf==3.20.3
 psutil==5.9.0
 ptyprocess==0.7.0
 pure-eval==0.2.2
